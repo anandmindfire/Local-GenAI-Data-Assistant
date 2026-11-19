@@ -21,17 +21,17 @@ flowchart TD
         API --> LoadCtx[Load Context]
         LoadCtx --> Contextualize[Contextualize Follow-up Question]
         Contextualize --> Router{Intent Router}
-        
+
         Router -->|document| RAG[Grounded RAG Engine]
         Router -->|sql| SQL[PostgreSQL SQL Agent]
         Router -->|combined| Parallel[Parallel Fan-Out: RAG + SQL]
-        
+
         Parallel --> RAG_Branch[RAG Branch: Semantic Search]
         Parallel --> SQL_Branch[SQL Branch: NL2SQL Generation]
-        
+
         RAG_Branch --> Aggregate[Result Aggregation & Synthesis]
         SQL_Branch --> Aggregate
-        
+
         RAG --> Persist[Persist Messages]
         SQL --> Persist
         Aggregate --> Persist

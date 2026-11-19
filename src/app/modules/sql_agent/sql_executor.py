@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def serialize_db_value(val: Any) -> Any:
     """Convert non-JSON serializable database values (Decimals, datetimes) to primitives."""
-    if isinstance(val, (datetime, date)):
+    if isinstance(val, datetime | date):
         return val.isoformat()
     elif isinstance(val, Decimal):
         return float(val)
