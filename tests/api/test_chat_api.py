@@ -63,28 +63,16 @@ async def test_chat_endpoint_sql_query(mocker):
 
 
 @pytest.mark.asyncio
-async def test_chat_endpoint_root_path_compatibility(mocker):
-    """Test /chat endpoint accessible directly without prefix."""
-    mocker.patch(
-        "app.api.routes.chat.execute_assistant_workflow",
-        new_callable=mocker.AsyncMock,
-        return_value={
-            "conversation_id": "conv_root",
-            "answer": "Test answer",
-            "intent": "document",
-            "sources": [],
-            "sql_results": None,
-            "execution_metadata": {},
-        },
-    )
-
+async def test_root_endpoint():
+    """Test GET / root info endpoint."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post(
-            "/chat", json={"message": "Hello", "conversation_id": "conv_root"}
-        )
+        response = await client.get("/")
         assert response.status_code == 200
-        assert response.json()["conversation_id"] == "conv_root"
+        data = response.json()
+        assert data["name"] == "local-genai-assistant"
+        assert data["docs"] == "/docs"
+        assert data["health"] == "/api/v1/health"
 
 
 @pytest.mark.asyncio

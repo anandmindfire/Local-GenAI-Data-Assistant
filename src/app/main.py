@@ -86,15 +86,10 @@ async def correlation_id_middleware(request: Request, call_next) -> Response:
 # Register centralized exception handlers
 register_exception_handlers(app)
 
-# Include API routers with versioned prefix
+# Include API routers with versioned prefix (/api/v1)
 app.include_router(health.router, prefix=settings.api_prefix)
 app.include_router(chat.router, prefix=settings.api_prefix)
 app.include_router(documents.router, prefix=settings.api_prefix)
-
-# Also expose routes at root prefix for assignment endpoint compatibility
-app.include_router(health.router)
-app.include_router(chat.router)
-app.include_router(documents.router)
 
 
 @app.get("/", tags=["Root"])

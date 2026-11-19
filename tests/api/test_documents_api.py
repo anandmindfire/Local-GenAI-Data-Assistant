@@ -94,16 +94,12 @@ async def test_list_and_delete_documents(override_db_session, mocker):
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # 1. List via versioned and root paths
+        # 1. List via versioned API path
         list_resp = await client.get("/api/v1/documents")
         assert list_resp.status_code == 200
         data = list_resp.json()
         assert data["total_count"] == 1
         assert data["items"][0]["document_id"] == "doc_abc"
-
-        root_list_resp = await client.get("/documents")
-        assert root_list_resp.status_code == 200
-        assert root_list_resp.json()["total_count"] == 1
 
         # 2. Delete existing
         del_resp = await client.delete("/api/v1/documents/doc_abc")

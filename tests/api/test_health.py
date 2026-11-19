@@ -27,11 +27,6 @@ async def test_health_check_healthy(mocker):
         assert data["dependencies"]["ollama"] is True
         assert data["dependencies"]["chat_model_available"] is True
 
-        # Test direct root endpoint /health
-        root_resp = await client.get("/health")
-        assert root_resp.status_code == 200
-        assert root_resp.json()["status"] == "ok"
-
 
 @pytest.mark.asyncio
 async def test_health_check_degraded(mocker):
