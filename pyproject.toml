@@ -45,6 +45,10 @@ dev = [
     "pytest-cov>=5.0.0",
     "ruff>=0.7.0",
     "aiosqlite>=0.20.0",
+    "pre-commit>=4.0.0",
+    "conventional-pre-commit>=0.3.4",
+    "bandit>=1.7.10",
+    "pip-audit>=2.7.3",
 ]
 
 [tool.setuptools.packages.find]
@@ -66,3 +70,7 @@ python_files = ["test_*.py"]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
+skips = ["B101", "B104"]

@@ -213,11 +213,7 @@ async def result_aggregation_node(state: AssistantState) -> dict[str, Any]:
     sql_answer = (meta.get("intermediate_sql_answer") or "").strip()
 
     if rag_answer and sql_answer:
-        combined = (
-            f"{rag_answer}\n\n"
-            f"---\n\n"
-            f"### 📊 Relational Database Data\n{sql_answer}"
-        )
+        combined = f"{rag_answer}\n\n---\n\n### 📊 Relational Database Data\n{sql_answer}"
         return {"answer": combined}
     elif rag_answer:
         return {"answer": rag_answer}

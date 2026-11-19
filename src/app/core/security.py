@@ -55,5 +55,5 @@ def sanitize_filename(filename: str) -> str:
     # Keep only alphanumeric, hyphens, underscores, dots
     cleaned = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", basename)
     if not cleaned or cleaned.startswith("."):
-        return f"document_{hashlib.md5(filename.encode()).hexdigest()[:8]}"
+        return f"document_{hashlib.md5(filename.encode(), usedforsecurity=False).hexdigest()[:8]}"
     return cleaned
