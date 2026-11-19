@@ -15,40 +15,28 @@ The assistant provides an intelligent natural language interface across:
 
 ```mermaid
 flowchart TD
-    User([User / Web Browser]) <-->|Web UI :8501| Streamlit[Streamlit Frontend]
-    User <-->|REST API / Swagger :8000| FastAPI[FastAPI Application]
-    Streamlit <-->|HTTP REST /api/v1| FastAPI
+    User(["User"]) --> UI["Streamlit Web UI<br/>:8501"]
+    User --> API["FastAPI Backend<br/>:8000"]
+    UI -->|REST API| API
 
-    subgraph LangGraph Orchestration [LangGraph Stateful Engine]
-        FastAPI --> LoadCtx[1. Load Conversation Context]
-        LoadCtx --> Contextualize[2. Contextualize Question<br/>Fast Pronoun Check / LLM Rewrite]
-        Contextualize --> Router{3. Fast-Path Intent Router<br/>Heuristic &lt;1ms / LLM Fallback}
-
-        Router -->|document| RAG[4a. Grounded RAG Engine]
-        Router -->|sql| SQL[4b. PostgreSQL SQL Agent]
-        Router -->|combined| Parallel[4c. Parallel Fan-Out: RAG + SQL]
-
-        Parallel --> RAG_Branch[RAG Branch: Semantic Search &amp; QA]
-        Parallel --> SQL_Branch[SQL Branch: NL2SQL &amp; Execution]
-
-        RAG_Branch --> Aggregate[5. Structured Composite Aggregation]
-        SQL_Branch --> Aggregate
-
-        RAG --> Persist[6. Persist Conversation &amp; Messages]
-        SQL --> Persist
-        Aggregate --> Persist
+    subgraph Orchestrator ["LangGraph Orchestration Engine"]
+        API --> Router{"Intent Router"}
+        Router -->|Document Query| RAG["Document RAG"]
+        Router -->|Database Query| SQL["PostgreSQL SQL Agent"]
+        Router -->|Multi-Source| Combined["Combined Fan-Out"]
+        RAG --> Answer["Synthesized Answer"]
+        SQL --> Answer
+        Combined --> Answer
     end
 
-    subgraph Local Infrastructure [Docker Compose Network: genai-network]
-        RAG <-->|Cosine Search &amp; Payload Filter| Qdrant[(Qdrant Vector DB :6333)]
-        SQL <-->|Read-Only Queries 5s Timeout| PG[(PostgreSQL 16 :5432)]
-        FastAPI <-->|Session State &amp; Audit Logs| PG
-        RAG & Contextualize & Router & SQL <-->|qwen3:1.7b Inference| Ollama[Ollama Runtime :11434]
-        RAG <-->|nomic-embed-text 768d| Ollama
+    subgraph Storage ["Local Services & AI Models"]
+        RAG <--> Qdrant[("Qdrant Vector DB<br/>Document Vectors")]
+        SQL <--> Postgres[("PostgreSQL 16<br/>Business Data & History")]
+        Orchestrator -.- Ollama["Ollama Local Runtime<br/>qwen3:1.7b & nomic-embed-text"]
     end
 ```
 
-For complete technical specifications, see [docs/architecture.md](docs/architecture.md).
+For detailed component interactions, data flows, and security boundaries, see [docs/architecture.md](docs/architecture.md).
 
 ---
 
