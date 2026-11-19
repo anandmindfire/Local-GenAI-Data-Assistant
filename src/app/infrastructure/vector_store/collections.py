@@ -67,7 +67,7 @@ async def init_collections(client: AsyncQdrantClient | None = None) -> None:
                     field_name=field_name,
                     field_schema=PayloadSchemaType.KEYWORD,
                 )
-            except Exception:
+            except Exception:  # nosec B110
                 # Index already exists or supported
                 pass
 

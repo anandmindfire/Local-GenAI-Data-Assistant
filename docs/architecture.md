@@ -11,7 +11,7 @@ The **Local GenAI Data Assistant** provides a unified natural-language interface
 ```mermaid
 flowchart TD
     User([User / HTTP Client]) <-->|REST API /chat /documents| FastAPI[FastAPI Application]
-    
+
     subgraph Local Infrastructure [Docker Compose Network: genai-network]
         FastAPI <-->|Async SQL| PG[(PostgreSQL)]
         FastAPI <-->|gRPC / REST| Qdrant[(Qdrant Vector DB)]
@@ -99,21 +99,21 @@ flowchart TD
     Start([User Query]) --> LoadContext[Load Conversation Context]
     LoadContext --> Contextualize[Contextualize Question]
     Contextualize --> IntentRouter{Intent Classification}
-    
+
     IntentRouter -->|document| RAG[RAG Retrieval & Generation]
     IntentRouter -->|sql| SQL[SQL Generation & Execution]
     IntentRouter -->|combined| Parallel[Fan-Out: Parallel RAG & SQL]
-    
+
     Parallel --> RAG_Branch[RAG Branch]
     Parallel --> SQL_Branch[SQL Branch]
-    
+
     RAG_Branch --> Aggregate[Aggregate & Synthesize Answers]
     SQL_Branch --> Aggregate
-    
+
     RAG --> FormatAnswer[Format Structured Response]
     SQL --> FormatAnswer
     Aggregate --> FormatAnswer
-    
+
     FormatAnswer --> Persist[Persist Messages in PostgreSQL]
     Persist --> EndNode([Return Chat Response])
 ```

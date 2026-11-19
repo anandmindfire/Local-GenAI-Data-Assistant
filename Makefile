@@ -9,8 +9,11 @@ STREAMLIT := $(if $(wildcard $(BIN)/streamlit),$(BIN)/streamlit,streamlit)
 PYTEST := $(if $(wildcard $(BIN)/pytest),$(BIN)/pytest,pytest)
 RUFF := $(if $(wildcard $(BIN)/ruff),$(BIN)/ruff,ruff)
 ALEMBIC := $(if $(wildcard $(BIN)/alembic),$(BIN)/alembic,alembic)
+PRECOMMIT := $(if $(wildcard $(BIN)/pre-commit),$(BIN)/pre-commit,pre-commit)
+BANDIT := $(if $(wildcard $(BIN)/bandit),$(BIN)/bandit,bandit)
+PIPAUDIT := $(if $(wildcard $(BIN)/pip-audit),$(BIN)/pip-audit,pip-audit)
 
-.PHONY: help install run ui test lint format migrate seed ingest docker-build docker-up docker-down
+.PHONY: help install run ui test lint format security hooks-install hooks-run migrate seed ingest docker-build docker-up docker-down
 
 help:
 	@echo "Local GenAI Assistant: Developer Commands"
@@ -18,8 +21,11 @@ help:
 	@echo "  make run           Run local FastAPI development server"
 	@echo "  make ui            Run Streamlit chat UI"
 	@echo "  make test          Run full Pytest test suite"
-	@echo "  make lint          Run Ruff linter"
-	@echo "  make format        Format code with Ruff"
+	@echo "  make lint          Run Ruff linter (ESLint alternative)"
+	@echo "  make format        Format code with Ruff (Prettier alternative)"
+	@echo "  make security      Run Bandit SAST and pip-audit vulnerability scans"
+	@echo "  make hooks-install Install pre-commit & commit-msg git hooks (Husky alternative)"
+	@echo "  make hooks-run     Run pre-commit checks on all files"
 	@echo "  make migrate       Apply database migrations via Alembic"
 	@echo "  make seed          Seed local database with realistic business data"
 	@echo "  make ingest        Batch ingest all documents from data/documents/"
@@ -44,6 +50,15 @@ lint:
 
 format:
 	$(RUFF) format . && $(RUFF) check --fix .
+
+security:
+	$(BANDIT) -c pyproject.toml -r src && $(PIPAUDIT)
+
+hooks-install:
+	$(PRECOMMIT) install --hook-type pre-commit --hook-type commit-msg
+
+hooks-run:
+	$(PRECOMMIT) run --all-files
 
 migrate:
 	$(ALEMBIC) upgrade head
