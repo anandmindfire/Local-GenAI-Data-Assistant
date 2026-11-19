@@ -1,6 +1,7 @@
 """Follow-up question contextualization and resolution."""
 
 import logging
+import re
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -8,6 +9,29 @@ from app.domain.models.conversation import Message
 from app.infrastructure.llm.chat_model import LocalChatService, get_chat_service
 
 logger = logging.getLogger(__name__)
+
+PRONOUN_PATTERN = re.compile(
+    r"\b(it|its|they|them|their|theirs|this|that|these|those|he|him|his|she|her|hers)\b",
+    re.IGNORECASE,
+)
+FOLLOW_UP_STARTERS = re.compile(
+    r"^(and\s+|what\s+about|how\s+about|why\s+|also\s+|additionally\s+)",
+    re.IGNORECASE,
+)
+
+
+def needs_contextualization(question: str) -> bool:
+    """Check whether a question contains anaphoric pronouns or conversational follow-up markers."""
+    clean = question.strip()
+    words = clean.split()
+    if len(words) < 4:
+        return True
+    if FOLLOW_UP_STARTERS.search(clean):
+        return True
+    if PRONOUN_PATTERN.search(clean):
+        return True
+    return False
+
 
 CONTEXTUALIZE_SYSTEM_PROMPT = """You are a conversational query rewriting assistant.
 Given a chat history between a user and assistant, and a follow-up question from the user:
@@ -33,7 +57,7 @@ class ContextualizerService:
     ) -> str:
         """Rewrite question into standalone query using dialog history."""
         clean_question = current_question.strip()
-        if not history:
+        if not history or not needs_contextualization(clean_question):
             return clean_question
 
         # Format history preview (last 6 messages)

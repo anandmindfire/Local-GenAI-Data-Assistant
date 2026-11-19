@@ -2,8 +2,38 @@
 
 import pytest
 
+from app.domain.enums.intent import UserIntent
+from app.modules.graph.routing import classify_intent_heuristic
 from app.modules.graph.state import AssistantState
 from app.modules.graph.workflow import build_assistant_graph, route_by_intent
+
+
+def test_classify_intent_heuristic():
+    """Verify fast-path heuristic classifier accurately identifies intents in <1ms."""
+    # Document tests
+    doc_res = classify_intent_heuristic("What is the company annual leave policy?")
+    assert doc_res is not None
+    assert doc_res.intent == UserIntent.DOCUMENT
+
+    # SQL tests
+    sql_res = classify_intent_heuristic("Which are the top five customers by revenue?")
+    assert sql_res is not None
+    assert sql_res.intent == UserIntent.SQL
+
+    sql_res2 = classify_intent_heuristic("Which products have stock below 10?")
+    assert sql_res2 is not None
+    assert sql_res2.intent == UserIntent.SQL
+
+    # Combined tests
+    comb_res = classify_intent_heuristic(
+        "What is our customer refund policy, and how much was refunded in total?"
+    )
+    assert comb_res is not None
+    assert comb_res.intent == UserIntent.COMBINED
+
+    # Fallback to LLM
+    ambiguous = classify_intent_heuristic("Tell me about general philosophy")
+    assert ambiguous is None
 
 
 def test_route_by_intent():

@@ -41,6 +41,7 @@ ENV PYTHONUNBUFFERED=1
 COPY src/ /app/src/
 COPY data/ /app/data/
 COPY scripts/ /app/scripts/
+COPY frontend/ /app/frontend/
 COPY alembic.ini /app/alembic.ini
 COPY alembic/ /app/alembic/
 
@@ -51,6 +52,7 @@ RUN groupadd -r genai && useradd -r -g genai -d /app -s /sbin/nologin genai && \
 USER genai
 
 EXPOSE 8000
+EXPOSE 8501
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:8000/api/v1/health || exit 1

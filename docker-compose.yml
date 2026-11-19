@@ -57,6 +57,9 @@ services:
     image: ollama/ollama:latest
     container_name: genai-ollama
     restart: unless-stopped
+    environment:
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_KEEP_ALIVE=24h
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -120,3 +123,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: genai-frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      API_BASE_URL: http://api:8000/api/v1
+    volumes:
+      - ./frontend:/app/frontend
+    ports:
+      - "8501:8501"
+    networks:
+      - genai-network
+    command: ["streamlit", "run", "frontend/app.py", "--server.port=8501", "--server.address=0.0.0.0"]

@@ -14,10 +14,9 @@ from app.infrastructure.llm.chat_model import get_chat_service
 from app.modules.conversation.context_builder import get_contextualizer_service
 from app.modules.conversation.service import get_conversation_service
 from app.modules.graph.prompts import (
-    build_aggregation_system_message,
     build_router_system_message,
 )
-from app.modules.graph.routing import IntentClassification
+from app.modules.graph.routing import IntentClassification, classify_intent_heuristic
 from app.modules.graph.state import AssistantState
 from app.modules.rag.service import get_rag_service
 from app.modules.sql_agent.service import get_sql_agent_service
@@ -35,11 +34,11 @@ async def load_context_node(state: AssistantState) -> dict[str, Any]:
         conv_service = get_conversation_service()
         async with db_context() as session:
             history = await conv_service.get_conversation_history(conversation_id, session=session)
-            # Store history in execution_metadata for next node
+            # Store history as JSON-compatible dicts in execution_metadata for contextualization
             return {
                 "execution_metadata": {
                     **state.get("execution_metadata", {}),
-                    "history": [h.model_dump() for h in history],
+                    "history": [h.model_dump(mode="json") for h in history],
                 }
             }
     except Exception as e:
@@ -70,6 +69,16 @@ async def contextualize_question_node(state: AssistantState) -> dict[str, Any]:
 async def intent_router_node(state: AssistantState) -> dict[str, Any]:
     """Node: Classify question into 'document', 'sql', or 'combined'."""
     question = state.get("contextualized_question") or state["question"]
+
+    # 1. Instant fast-path heuristic check (<1ms)
+    heuristic = classify_intent_heuristic(question)
+    if heuristic is not None:
+        logger.info(
+            f"Fast-path intent classified as '{heuristic.intent.value}' (confidence={heuristic.confidence:.2f})"
+        )
+        return {"intent": heuristic.intent.value}
+
+    # 2. Fallback to LLM structured classification
     chat_service = get_chat_service()
 
     messages = [
@@ -198,35 +207,24 @@ async def parallel_combined_node(state: AssistantState) -> dict[str, Any]:
 
 
 async def result_aggregation_node(state: AssistantState) -> dict[str, Any]:
-    """Node: Synthesize outputs from parallel RAG and SQL branches into a single answer."""
+    """Node: Synthesize outputs from parallel RAG and SQL branches into a structured response."""
     meta = state.get("execution_metadata", {})
-    rag_answer = meta.get("intermediate_rag_answer", "")
-    sql_answer = meta.get("intermediate_sql_answer", "")
-    question = state.get("contextualized_question") or state["question"]
+    rag_answer = (meta.get("intermediate_rag_answer") or "").strip()
+    sql_answer = (meta.get("intermediate_sql_answer") or "").strip()
 
-    chat_service = get_chat_service()
-
-    prompt = (
-        f"USER QUESTION: {question}\n\n"
-        f"DOCUMENT POLICY EVIDENCE:\n{rag_answer}\n\n"
-        f"RELATIONAL DATABASE DATA:\n{sql_answer}\n\n"
-        f"Please provide a coherent, synthesized final response answering both parts of the question."
-    )
-
-    messages = [
-        build_aggregation_system_message(),
-        HumanMessage(content=prompt),
-    ]
-
-    try:
-        combined_answer = await chat_service.ainvoke(messages)
-        return {"answer": combined_answer}
-    except Exception as e:
-        logger.warning(
-            f"Aggregation node LLM synthesis failed ({e}). Concatenating branch answers."
+    if rag_answer and sql_answer:
+        combined = (
+            f"{rag_answer}\n\n"
+            f"---\n\n"
+            f"### 📊 Relational Database Data\n{sql_answer}"
         )
-        concatenated = f"{rag_answer}\n\n---\n\n{sql_answer}"
-        return {"answer": concatenated}
+        return {"answer": combined}
+    elif rag_answer:
+        return {"answer": rag_answer}
+    elif sql_answer:
+        return {"answer": sql_answer}
+    else:
+        return {"answer": "No relevant records or policy documents could be found."}
 
 
 async def persist_conversation_node(
@@ -252,7 +250,12 @@ async def persist_conversation_node(
             session=s,
         )
 
-        # 3. Persist assistant message
+        # 3. Clean execution_metadata to avoid duplicate history and serialization issues
+        meta_to_persist = {
+            k: v for k, v in state.get("execution_metadata", {}).items() if k != "history"
+        }
+
+        # 4. Persist assistant message
         await conv_service.add_message(
             conversation_id=conversation_id,
             role=MessageRole.ASSISTANT,
@@ -261,7 +264,7 @@ async def persist_conversation_node(
             sources=state.get("sources", []),
             sql_query=state.get("generated_sql"),
             sql_results=state.get("sql_results"),
-            execution_metadata=state.get("execution_metadata", {}),
+            execution_metadata=meta_to_persist,
             session=s,
         )
 

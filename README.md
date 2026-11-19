@@ -163,6 +163,27 @@ Expected response:
 }
 ```
 
+### 6. Launch & Access the Streamlit Web UI
+
+Open your browser to interact with documents and the database through a rich graphical UI:
+
+👉 **[http://localhost:8501](http://localhost:8501)**
+
+**Built-in Streamlit Capabilities:**
+- 💬 **Conversational Chat**: `st.chat_message()` and `st.chat_input()` with session persistence.
+- 📄 **Document Uploader**: `st.file_uploader()` to upload and index PDF, DOCX, TXT, and Markdown files on the fly.
+- 📊 **SQL Dataframe Viewer**: `st.dataframe()` displaying relational query results as formatted tables.
+- 📑 **Source Citations**: Collapsible citation expanders detailing document names, page numbers, and cosine similarity scores.
+- 🔌 **Live Health Telemetry**: Sidebar monitoring real-time connectivity to PostgreSQL, Qdrant, Ollama, and local models.
+- 💡 **One-Click Demo Queries**: Quick-launch buttons to immediately test RAG, SQL, and Combined workflows.
+
+To run the Streamlit UI locally outside Docker:
+```bash
+make ui
+# or
+streamlit run frontend/app.py --server.port 8501
+```
+
 ---
 
 ## Interactive API Documentation

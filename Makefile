@@ -1,9 +1,22 @@
-.PHONY: help install run test lint format migrate seed ingest docker-build docker-up docker-down
+VENV ?= .venv
+BIN = $(VENV)/bin
+
+# Auto-detect virtualenv binaries if present, otherwise fall back to system PATH
+PYTHON := $(if $(wildcard $(BIN)/python),$(BIN)/python,python3)
+PIP := $(if $(wildcard $(BIN)/pip),$(BIN)/pip,pip)
+UVICORN := $(if $(wildcard $(BIN)/uvicorn),$(BIN)/uvicorn,uvicorn)
+STREAMLIT := $(if $(wildcard $(BIN)/streamlit),$(BIN)/streamlit,streamlit)
+PYTEST := $(if $(wildcard $(BIN)/pytest),$(BIN)/pytest,pytest)
+RUFF := $(if $(wildcard $(BIN)/ruff),$(BIN)/ruff,ruff)
+ALEMBIC := $(if $(wildcard $(BIN)/alembic),$(BIN)/alembic,alembic)
+
+.PHONY: help install run ui test lint format migrate seed ingest docker-build docker-up docker-down
 
 help:
 	@echo "Local GenAI Assistant: Developer Commands"
 	@echo "  make install       Install project dependencies into virtual environment"
 	@echo "  make run           Run local FastAPI development server"
+	@echo "  make ui            Run Streamlit chat UI"
 	@echo "  make test          Run full Pytest test suite"
 	@echo "  make lint          Run Ruff linter"
 	@echo "  make format        Format code with Ruff"
@@ -15,28 +28,31 @@ help:
 	@echo "  make docker-down   Stop and remove Docker Compose containers"
 
 install:
-	pip install -e ".[dev]"
+	$(PIP) install -e ".[dev]"
 
 run:
-	uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+	$(UVICORN) app.main:app --host 0.0.0.0 --port 8000 --reload
+
+ui:
+	$(STREAMLIT) run frontend/app.py --server.port 8501
 
 test:
-	pytest --cov=app --cov-report=term-missing
+	$(PYTEST) --cov=app --cov-report=term-missing
 
 lint:
-	ruff check .
+	$(RUFF) check .
 
 format:
-	ruff format . && ruff check --fix .
+	$(RUFF) format . && $(RUFF) check --fix .
 
 migrate:
-	alembic upgrade head
+	$(ALEMBIC) upgrade head
 
 seed:
-	python scripts/seed_database.py
+	$(PYTHON) scripts/seed_database.py
 
 ingest:
-	python scripts/ingest_documents.py
+	$(PYTHON) scripts/ingest_documents.py
 
 docker-build:
 	docker compose build

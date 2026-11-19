@@ -41,6 +41,8 @@ class LocalChatService:
             base_url=self.base_url,
             temperature=self.temperature,
             timeout=self.timeout,
+            reasoning=False,
+            num_predict=768,
         )
 
     def get_llm(self) -> ChatOllama:
