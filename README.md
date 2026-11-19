@@ -15,36 +15,70 @@ The assistant provides an intelligent natural language interface across:
 
 ```mermaid
 flowchart TD
-    User([User / Client]) <-->|HTTP REST /chat /documents| API[FastAPI Application]
+    User([User / Web Browser]) <-->|Web UI :8501| Streamlit[Streamlit Frontend]
+    User <-->|REST API / Swagger :8000| FastAPI[FastAPI Application]
+    Streamlit <-->|HTTP REST /api/v1| FastAPI
 
-    subgraph LangGraph Orchestration
-        API --> LoadCtx[Load Context]
-        LoadCtx --> Contextualize[Contextualize Follow-up Question]
-        Contextualize --> Router{Intent Router}
+    subgraph LangGraph Orchestration [LangGraph Stateful Engine]
+        FastAPI --> LoadCtx[1. Load Conversation Context]
+        LoadCtx --> Contextualize[2. Contextualize Question<br/>Fast Pronoun Check / LLM Rewrite]
+        Contextualize --> Router{3. Fast-Path Intent Router<br/>Heuristic &lt;1ms / LLM Fallback}
 
-        Router -->|document| RAG[Grounded RAG Engine]
-        Router -->|sql| SQL[PostgreSQL SQL Agent]
-        Router -->|combined| Parallel[Parallel Fan-Out: RAG + SQL]
+        Router -->|document| RAG[4a. Grounded RAG Engine]
+        Router -->|sql| SQL[4b. PostgreSQL SQL Agent]
+        Router -->|combined| Parallel[4c. Parallel Fan-Out: RAG + SQL]
 
-        Parallel --> RAG_Branch[RAG Branch: Semantic Search]
-        Parallel --> SQL_Branch[SQL Branch: NL2SQL Generation]
+        Parallel --> RAG_Branch[RAG Branch: Semantic Search &amp; QA]
+        Parallel --> SQL_Branch[SQL Branch: NL2SQL &amp; Execution]
 
-        RAG_Branch --> Aggregate[Result Aggregation & Synthesis]
+        RAG_Branch --> Aggregate[5. Structured Composite Aggregation]
         SQL_Branch --> Aggregate
 
-        RAG --> Persist[Persist Messages]
+        RAG --> Persist[6. Persist Conversation &amp; Messages]
         SQL --> Persist
         Aggregate --> Persist
     end
 
-    subgraph Infrastructure Services
-        RAG <--> Qdrant[(Qdrant Vector DB)]
-        SQL <--> PG[(PostgreSQL Relational DB)]
-        RAG & Router & SQL <--> Ollama[Ollama Local Runtime]
+    subgraph Local Infrastructure [Docker Compose Network: genai-network]
+        RAG <-->|Cosine Search &amp; Payload Filter| Qdrant[(Qdrant Vector DB :6333)]
+        SQL <-->|Read-Only Queries 5s Timeout| PG[(PostgreSQL 16 :5432)]
+        FastAPI <-->|Session State &amp; Audit Logs| PG
+        RAG & Contextualize & Router & SQL <-->|qwen3:1.7b Inference| Ollama[Ollama Runtime :11434]
+        RAG <-->|nomic-embed-text 768d| Ollama
     end
 ```
 
 For complete technical specifications, see [docs/architecture.md](docs/architecture.md).
+
+---
+
+## Visual Walkthrough & User Interfaces
+
+### 1. Conversational Web Interface (Streamlit)
+Access at: **[http://localhost:8501](http://localhost:8501)**
+
+The Streamlit UI provides a production-grade interactive workbench decoupled from the backend:
+- **Interactive Chat**: Natural language conversation with question contextualization and state persistence.
+- **Dynamic Document Upload**: Multi-format file uploader (`.pdf`, `.docx`, `.txt`, `.md`) with real-time chunk indexing.
+- **Document Repository View**: Sidebar displaying all 9 indexed enterprise documents with real-time chunk counts.
+- **Grounded Citations**: Expandable source attribution displaying source file, page number, chunk ID, and vector similarity score.
+- **Audit & Telemetry**: Expandable metadata showing routing intent, confidence ratings, and execution metrics.
+- **Interactive Dataframe View**: Formatted Pandas tables for SQL agent query outputs.
+
+![Streamlit Web Interface](docs/images/streamlit-ui.jpg)
+
+### 2. Interactive REST API Documentation (FastAPI Swagger UI)
+Access at: **[http://localhost:8000/docs](http://localhost:8000/docs)** *(ReDoc: [http://localhost:8000/redoc](http://localhost:8000/redoc))*
+
+FastAPI automatically generates an interactive OpenAPI 3.1 specification exposing clean, versioned endpoints:
+- `GET /api/v1/health`: Deep health inspection verifying PostgreSQL, Qdrant, Ollama, and local model availability.
+- `POST /api/v1/chat`: Conversational endpoint orchestrating LangGraph, RAG, and NL2SQL.
+- `POST /api/v1/documents/ingest`: Multipart file upload and asynchronous vector ingestion.
+- `GET /api/v1/documents`: Paginated listing of indexed enterprise documents.
+- `DELETE /api/v1/documents/{document_id}`: Cascading deletion of document metadata and Qdrant vector points.
+- `GET /`: Root service status.
+
+![FastAPI Swagger UI](docs/images/swagger-api-docs.png)
 
 ---
 
@@ -71,6 +105,7 @@ Rather than expecting a single model to handle disparate tasks, the system emplo
 | Layer | Technology | Purpose |
 |---|---|---|
 | **Language** | Python 3.12+ | Core runtime environment |
+| **Web Frontend** | Streamlit 1.42+ | Conversational chat UI, document uploader, and SQL dataframes |
 | **API Framework** | FastAPI + Uvicorn | High-performance asynchronous REST endpoints |
 | **Validation & Settings** | Pydantic v2 + Pydantic Settings | Contract validation and environment configuration |
 | **Local LLM Runtime** | Ollama | Local model inference (`qwen3:1.7b`, configurable) |
@@ -82,8 +117,8 @@ Rather than expecting a single model to handle disparate tasks, the system emplo
 | **Document Parsing** | PyMuPDF + python-docx | Text & page extraction from PDF, DOCX, TXT, and Markdown |
 | **Text Chunking** | LangChain Text Splitters | Recursive character splitting with page reference preservation |
 | **Workflow Graph** | LangGraph | Stateful workflow routing, parallel execution, and retries |
-| **Testing** | Pytest, Pytest-Asyncio, HTTPX | 84 automated unit, integration, and security tests |
-| **Code Hygiene** | Ruff | Ultra-fast linting and code formatting |
+| **Testing** | Pytest, Pytest-Asyncio, HTTPX | 85 automated unit, integration, and security tests |
+| **Code Hygiene & SAST** | Pre-commit, Ruff, Bandit, Pip-audit | Linting, formatting, security analysis, dependency audit |
 
 ---
 
@@ -97,7 +132,7 @@ Rather than expecting a single model to handle disparate tasks, the system emplo
 
 ## Quickstart: Running with Docker Compose (Recommended)
 
-The entire application stack (API, PostgreSQL, Qdrant, Ollama) runs locally via Docker Compose in a single command.
+The entire application stack (API, Streamlit UI, PostgreSQL, Qdrant, Ollama) runs locally via Docker Compose in a single command.
 
 ### 1. Clone & Configure Environment
 ```bash
@@ -114,16 +149,17 @@ docker compose up -d
 ```
 
 This starts:
-- `genai-postgres`: PostgreSQL 16 with business tables auto-seeded and restricted `genai_readonly` role.
-- `genai-qdrant`: Qdrant vector database on ports `6333` and `6334`.
-- `genai-ollama`: Local model runtime on port `11434`.
-- `genai-api`: FastAPI application on port `8000`.
+- `genai-postgres`: PostgreSQL 16 with business tables auto-seeded and restricted `genai_readonly` role (Port 5432).
+- `genai-qdrant`: Qdrant vector database (Ports 6333, 6334).
+- `genai-ollama`: Local model runtime with `qwen3:1.7b` and `nomic-embed-text` (Port 11434).
+- `genai-api`: FastAPI application backend (Port 8000).
+- `genai-frontend`: Streamlit conversational web interface (Port 8501).
 
 Check container health:
 ```bash
 docker compose ps
 ```
-*(All 4 containers will report `healthy` within 10–15 seconds).*
+*(All 5 containers will report `healthy` within 10–15 seconds).*
 
 ### 3. Download Local Models
 Run the automated model setup script to pull `qwen3:1.7b` and `nomic-embed-text`:
@@ -446,6 +482,14 @@ ruff format --check .
 
 ```text
 local-llm-rag/
+├── .github/
+│   ├── dependabot.yml                  # Automated dependency update configuration
+│   ├── pull_request_template.md        # Standardized PR submission checklist
+│   └── workflows/
+│       └── ci.yml                      # 4-stage GitHub Actions CI pipeline
+├── .pre-commit-config.yaml             # Python-native git hooks (ruff, bandit, commitlint)
+├── CONTRIBUTING.md                     # Development, styling, and contribution guide
+├── SECURITY.md                         # Vulnerability disclosure & security policies
 ├── src/
 │   └── app/
 │       ├── main.py                     # FastAPI lifespan, middleware, router mount
@@ -464,17 +508,32 @@ local-llm-rag/
 │           ├── sql_agent/              # Schema inspector, AST validator, executor
 │           ├── conversation/           # Message history and question rewriter
 │           └── graph/                  # LangGraph state, nodes, and workflow
+├── frontend/
+│   └── app.py                          # Streamlit conversational web interface
 ├── data/
 │   ├── documents/                      # 9 sample multi-format enterprise policies
 │   ├── seed/                           # Database schema and seed SQL
 │   └── uploads/                        # Runtime document upload staging
 ├── docker/
 │   └── postgres/init/                  # Postgres auto-init scripts (read-only role, schema, seed)
-├── docs/                               # Architecture, API, security, technical decisions
+├── docs/
+│   ├── images/                         # UI & Swagger screenshots
+│   │   ├── streamlit-ui.jpg            # Streamlit Chat UI screenshot
+│   │   └── swagger-api-docs.png        # FastAPI Swagger docs screenshot
+│   ├── architecture.md                 # System architecture and LangGraph workflow
+│   ├── api.md                          # OpenAPI REST endpoint documentation
+│   ├── security.md                     # Security threat model and AST validation
+│   ├── technical-decisions.md          # Architectural decisions & model selection
+│   └── progress-tracker.md             # Phased milestone verification and completion records
 ├── scripts/                            # CLI scripts for models, seed, and ingestion
-├── tests/                              # 84 automated tests across 5 test suites
+├── tests/                              # 85 automated tests across 5 test suites
+│   ├── api/                            # REST endpoint tests
+│   ├── evaluation/                     # RAG & SQL accuracy benchmarks
+│   ├── integration/                    # End-to-end ingestion tests
+│   ├── security/                       # SQL injection & AST security attack tests
+│   └── unit/                           # Core component & parser tests
 ├── Dockerfile                          # Multi-stage production container build
-├── docker-compose.yml                  # 4-tier local orchestration
+├── docker-compose.yml                  # 5-service local container orchestration
 ├── pyproject.toml                      # Project metadata and pinned dependencies
 └── Makefile                            # Developer convenience shortcuts
 ```
