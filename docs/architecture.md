@@ -2,15 +2,18 @@
 
 ## 1. System Overview
 
-The **Local GenAI Data Assistant** provides a unified natural-language interface across unstructured enterprise documents and structured relational data. It is deployed as a secure, local-only system composed of four containerized services:
+The **Local GenAI Data Assistant** provides a unified natural-language interface across unstructured enterprise documents and structured relational data. It is deployed as a secure, local-only system composed of five containerized services:
 1. **API**: FastAPI application orchestrating LangGraph workflows, RAG, and NL2SQL.
-2. **PostgreSQL**: Stores business transactional data, conversation history, and query audit logs.
-3. **Qdrant**: Stores document vector embeddings and chunk metadata.
-4. **Ollama**: Serves local open-weights LLMs and embedding models.
+2. **Frontend**: Streamlit conversational presentation layer with session tracking and document upload.
+3. **PostgreSQL**: Stores business transactional data, conversation history, and query audit logs.
+4. **Qdrant**: Stores document vector embeddings and chunk metadata.
+5. **Ollama**: Serves local open-weights LLMs and embedding models.
 
 ```mermaid
 flowchart TD
-    User([User / HTTP Client]) <-->|REST API /chat /documents| FastAPI[FastAPI Application]
+    User([User / Browser]) <-->|Web UI :8501| Streamlit[Streamlit Frontend]
+    User <-->|REST API :8000| FastAPI[FastAPI Application]
+    Streamlit <-->|HTTP REST /api/v1| FastAPI
 
     subgraph Local Infrastructure [Docker Compose Network: genai-network]
         FastAPI <-->|Async SQL| PG[(PostgreSQL)]
@@ -96,26 +99,24 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Start([User Query]) --> LoadContext[Load Conversation Context]
-    LoadContext --> Contextualize[Contextualize Question]
-    Contextualize --> IntentRouter{Intent Classification}
+    Start([User Query]) --> LoadContext[1. Load Conversation History]
+    LoadContext --> Contextualize[2. Contextualize Question<br/>Fast pronoun check / LLM rewrite]
+    Contextualize --> IntentRouter{3. Intent Classification<br/>Fast-path heuristic &lt;1ms / LLM}
 
-    IntentRouter -->|document| RAG[RAG Retrieval & Generation]
-    IntentRouter -->|sql| SQL[SQL Generation & Execution]
-    IntentRouter -->|combined| Parallel[Fan-Out: Parallel RAG & SQL]
+    IntentRouter -->|document| RAG[4a. Grounded RAG Retrieval & Generation]
+    IntentRouter -->|sql| SQL[4b. NL2SQL Generation & Read-Only Execution]
+    IntentRouter -->|combined| Parallel[4c. Parallel Fan-Out: RAG + SQL]
 
-    Parallel --> RAG_Branch[RAG Branch]
-    Parallel --> SQL_Branch[SQL Branch]
+    Parallel --> RAG_Branch[RAG Branch: Semantic Search & QA]
+    Parallel --> SQL_Branch[SQL Branch: SQL Generation & Execution]
 
-    RAG_Branch --> Aggregate[Aggregate & Synthesize Answers]
+    RAG_Branch --> Aggregate[5. Structured Composite Synthesis]
     SQL_Branch --> Aggregate
 
-    RAG --> FormatAnswer[Format Structured Response]
-    SQL --> FormatAnswer
-    Aggregate --> FormatAnswer
-
-    FormatAnswer --> Persist[Persist Messages in PostgreSQL]
-    Persist --> EndNode([Return Chat Response])
+    RAG --> Persist[6. Persist Messages in PostgreSQL]
+    SQL --> Persist
+    Aggregate --> Persist
+    Persist --> EndNode([Return Structured Chat Response])
 ```
 
 ---
