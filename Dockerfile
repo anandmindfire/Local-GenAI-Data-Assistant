@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for Local GenAI Data Assistant
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 WORKDIR /build
 
@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
 # Final runtime image
-FROM python:3.12-slim AS runner
+FROM python:3.15-slim AS runner
 
 WORKDIR /app
 
