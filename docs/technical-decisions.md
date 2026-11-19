@@ -19,18 +19,23 @@ Implement the entire application as a **Modular Monolith** in Python 3.12, organ
 
 ---
 
-## 2. LLM Runtime: Ollama with Qwen 2.5 / 3 and Nomic Embed Text
+## 2. LLM Runtime & Two-Model Architecture: Ollama with Qwen & Nomic Embed Text
 
 ### Decision
-Use **Ollama** as the local inference runtime, pairing a general-purpose chat model (`qwen2.5:7b` / `qwen3:8b` / `llama3.1:8b`) with `nomic-embed-text` (768-dimensional embeddings).
+Use **Ollama** as the local inference runtime, adopting a specialized **two-model architecture**:
+1. **Generative Chat LLM**: `qwen3:1.7b` (1.4 GB) for conversation, intent routing, NL2SQL generation, and result aggregation (configurable to `qwen2.5:7b` or `llama3.1:8b`).
+2. **Embedding Model**: `nomic-embed-text` (274 MB) for generating 768-dimensional dense vector embeddings.
 
 ### Rationale
-- **Standard Local API**: Ollama provides a reliable, high-performance C++ backend (llama.cpp) with GPU acceleration (Metal on macOS, CUDA on Linux/Windows) and native OpenAI/LangChain-compatible REST APIs.
-- **Local Privacy**: Ensures zero data leakage to external cloud APIs, complying with enterprise data residency and privacy mandates.
-- **Configurable Models**: Model names are strictly externalized in environment variables (`CHAT_MODEL`, `EMBEDDING_MODEL`), permitting drop-in replacement with any compatible GGUF model in Ollama without code changes.
+- **Model Specialization**: Embedding models (like `nomic-embed-text`) are specifically pre-trained to produce dense semantic representations for vector retrieval; they cannot generate natural language or SQL. Conversely, decoder-only LLMs are inefficient vector embedders and consume excessive memory for similarity computations.
+- **Low Footprint & High Responsiveness**: `qwen3:1.7b` requires only ~1.4 GB of RAM/VRAM, allowing the entire assistant to run smoothly on standard laptops without requiring high-end server GPUs.
+- **Standard Local API**: Ollama provides a reliable C++ backend (llama.cpp) with hardware acceleration (Metal on macOS, CUDA on Linux/Windows) and native LangChain compatibility.
+- **Local Privacy**: Zero data leakage to cloud APIs, meeting strict enterprise compliance standards.
+- **Configurable Externalization**: Model names are externalized in `.env` (`CHAT_MODEL`, `EMBEDDING_MODEL`), allowing drop-in upgrades without touching application code.
 
 ### Alternatives Considered
-- *vLLM / TGI*: High resource requirements, complex setup on macOS/Metal, overkill for single-user local deployment.
+- *Single Model for Both Tasks*: Attempting to use a single generative LLM for embeddings and chat produces inferior retrieval quality and wastes computational resources.
+- *vLLM / TGI*: High resource requirements, complex setup on macOS/Metal, overkill for single-node local deployment.
 - *Local HuggingFace Transformers in Python*: High RAM footprint, GIL constraints in Python process, slower than C++ inference backends like llama.cpp/Ollama.
 
 ---

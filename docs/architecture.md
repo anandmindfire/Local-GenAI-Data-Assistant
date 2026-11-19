@@ -55,6 +55,11 @@ flowchart TD
 - **SQL Executor**: Connects via a restricted `readonly_user` role with SELECT privileges only and an aggressive statement timeout (5s).
 - **Correction Loop**: Feeds validation or execution errors back to the model for up to 2 correction attempts.
 
+### 2.4 Local Model Integration (`app.infrastructure.llm`)
+- **Generative Chat Model (`qwen3:1.7b`, ~1.4 GB)**: Handles natural-language reasoning, LangGraph intent classification, SQL generation, and answer synthesis.
+- **Embedding Model (`nomic-embed-text`, ~274 MB)**: Transforms text chunks and semantic search queries into 768-dimensional dense vectors for Qdrant indexing and retrieval.
+- **Model Decoupling**: Separation of generation from representation guarantees optimal retrieval accuracy without burdening memory with unnecessary model weights.
+
 ---
 
 ## 3. End-to-End Data Flows

@@ -119,5 +119,6 @@
 - [x] SQL Agent evaluation benchmark testing complex queries (`tests/evaluation/test_sql_evaluation.py`)
 - [x] Complete documentation suite (`README.md`, `docs/architecture.md`, `docs/security.md`, `docs/api.md`, `docs/technical-decisions.md`)
 - [x] Automated developer workflow commands in `Makefile`
-- [x] Full test suite execution: **81 tests passed, 0 failures**
+- [x] Full test suite execution: **84 tests passed, 0 failures, 77% coverage**
+- [x] Two-model architecture verified live on Docker Compose (`qwen3:1.7b` + `nomic-embed-text`)
 - [x] Ruff linting and formatting: **100% passing clean**
